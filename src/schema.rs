@@ -1,39 +1,39 @@
 // @generated automatically by Diesel CLI.
 
 pub mod sql_types {
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "contact_method"))]
     pub struct ContactMethod;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "listing_status"))]
     pub struct ListingStatus;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "listing_type"))]
     pub struct ListingType;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "match_status"))]
     pub struct MatchStatus;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "moderation_action"))]
     pub struct ModerationAction;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "notification_type"))]
     pub struct NotificationType;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "return_status"))]
     pub struct ReturnStatus;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "tsvector", schema = "pg_catalog"))]
     pub struct Tsvector;
 
-    #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "user_role"))]
     pub struct UserRole;
 }

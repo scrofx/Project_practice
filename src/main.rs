@@ -1,6 +1,7 @@
+#![feature(trivial_bounds)]
 mod db;
 mod schema;
-
+pub mod models;
 
 use rocket::{get, launch, routes};
 use rocket_sync_db_pools::database;
