@@ -226,7 +226,6 @@ pub struct Listing {
     pub moderated_by: Option<Uuid>,
     pub moderated_at: Option<DateTime<Utc>>,
     #[serde(skip)]
-    pub search_vector: Option<TsVector>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

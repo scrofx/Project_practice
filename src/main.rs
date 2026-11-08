@@ -4,7 +4,7 @@ mod schema;
 pub mod models;
 pub mod auth;
 mod enums;
-
+mod listings;
 
 use rocket::{get, launch, routes};
 use rocket_sync_db_pools::database;
@@ -34,6 +34,7 @@ async fn rocket() -> _ {
             health,
             auth::login,
             auth::register,
-            auth::me
+            auth::me,
+            listings::create_listing
         ])
 }
