@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+campuslost_shared = {path = "shared"}
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_sync_db_pools = { version = "0.1.0", features = ["diesel_postgres_pool"] }
 diesel = { version = "2.3.14", features = ["postgres","chrono", "serde_json", "uuid", "numeric"] }
@@ -15,3 +16,6 @@ diesel-derive-enum = { version = "2.1.0", features = ["postgres"] }
 diesel_full_text_search = "2.3.1"
 chrono = { version = "0.4.42", features = ["serde"] }
 bigdecimal = { version = "0.4.11", features = ["serde"] }
+argon2 = { version = "0.6.0" }
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] }
+rand = "0.8.5"

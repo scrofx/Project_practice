@@ -2,6 +2,9 @@
 mod db;
 mod schema;
 pub mod models;
+pub mod auth;
+mod enums;
+
 
 use rocket::{get, launch, routes};
 use rocket_sync_db_pools::database;
@@ -27,5 +30,10 @@ async fn rocket() -> _ {
         // Register the pool before the startup healthcheck fairing.
         .attach(db::Db::fairing())
         .attach(db::DatabaseStartupHealthcheck)
-        .mount("/", routes![health])
+        .mount("/", routes![
+            health,
+            auth::login,
+            auth::register,
+            auth::me
+        ])
 }

@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::UserRole"]
 #[DbValueStyle = "snake_case"]
-pub enum UserRole {
+pub enum DBUserRole {
     Student,
     Moderator,
     Admin,
@@ -19,7 +19,7 @@ pub enum UserRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::ListingType"]
 #[DbValueStyle = "snake_case"]
-pub enum ListingType {
+pub enum DBListingType {
     Lost,
     Found,
 }
@@ -27,7 +27,7 @@ pub enum ListingType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::ListingStatus"]
 #[DbValueStyle = "snake_case"]
-pub enum ListingStatus {
+pub enum DBListingStatus {
     PendingReview,
     Active,
     Matched,
@@ -39,7 +39,7 @@ pub enum ListingStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::MatchStatus"]
 #[DbValueStyle = "snake_case"]
-pub enum MatchStatus {
+pub enum DBMatchStatus {
     Suggested,
     Confirmed,
     Rejected,
@@ -48,7 +48,7 @@ pub enum MatchStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::ReturnStatus"]
 #[DbValueStyle = "snake_case"]
-pub enum ReturnStatus {
+pub enum DBReturnStatus {
     Pending,
     Completed,
     Cancelled,
@@ -57,7 +57,7 @@ pub enum ReturnStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::ModerationAction"]
 #[DbValueStyle = "snake_case"]
-pub enum ModerationAction {
+pub enum DBModerationAction {
     Approve,
     Remove,
 }
@@ -65,7 +65,7 @@ pub enum ModerationAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::ContactMethod"]
 #[DbValueStyle = "snake_case"]
-pub enum ContactMethod {
+pub enum DBContactMethod {
     Email,
     Phone,
     Telegram,
@@ -75,7 +75,7 @@ pub enum ContactMethod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, DbEnum, Serialize, Deserialize)]
 #[ExistingTypePath = "crate::schema::sql_types::NotificationType"]
 #[DbValueStyle = "snake_case"]
-pub enum NotificationType {
+pub enum DBNotificationType {
     ListingCreated,
     ListingApproved,
     ListingRemoved,
@@ -95,11 +95,11 @@ pub struct User {
     #[serde(skip_serializing)]
     pub password_hash: String,
     pub full_name: String,
-    pub role: UserRole,
+    pub role: DBUserRole,
     pub phone: Option<String>,
     pub telegram_handle: Option<String>,
     pub vk_handle: Option<String>,
-    pub preferred_contact: ContactMethod,
+    pub preferred_contact: DBContactMethod,
     pub avatar_path: Option<String>,
     pub bio: Option<String>,
     pub is_active: bool,
@@ -116,11 +116,11 @@ pub struct NewUser {
     pub email: String,
     pub password_hash: String,
     pub full_name: String,
-    pub role: Option<UserRole>,
+    pub role: Option<DBUserRole>,
     pub phone: Option<String>,
     pub telegram_handle: Option<String>,
     pub vk_handle: Option<String>,
-    pub preferred_contact: Option<ContactMethod>,
+    pub preferred_contact: Option<DBContactMethod>,
     pub avatar_path: Option<String>,
     pub bio: Option<String>,
     pub is_active: Option<bool>,
@@ -133,11 +133,11 @@ pub struct UpdateUser {
     pub email: Option<String>,
     pub password_hash: Option<String>,
     pub full_name: Option<String>,
-    pub role: Option<UserRole>,
+    pub role: Option<DBUserRole>,
     pub phone: Option<String>,
     pub telegram_handle: Option<String>,
     pub vk_handle: Option<String>,
-    pub preferred_contact: Option<ContactMethod>,
+    pub preferred_contact: Option<DBContactMethod>,
     pub avatar_path: Option<String>,
     pub bio: Option<String>,
     pub is_active: Option<bool>,
@@ -214,7 +214,7 @@ pub struct Listing {
     pub id: Uuid,
     pub user_id: Uuid,
     #[serde(rename = "type")]
-    pub type_: ListingType,
+    pub type_: DBListingType,
     pub category_id: Uuid,
     pub building_id: Uuid,
     pub title: String,
@@ -222,7 +222,7 @@ pub struct Listing {
     pub photo_path: String,
     pub location_detail: Option<String>,
     pub event_date: NaiveDate,
-    pub status: ListingStatus,
+    pub status: DBListingStatus,
     pub moderated_by: Option<Uuid>,
     pub moderated_at: Option<DateTime<Utc>>,
     #[serde(skip)]
@@ -235,7 +235,7 @@ pub struct Listing {
 #[diesel(table_name = crate::schema::listings)]
 pub struct NewListing {
     pub user_id: Uuid,
-    pub type_: ListingType,
+    pub type_: DBListingType,
     pub category_id: Uuid,
     pub building_id: Uuid,
     pub title: String,
@@ -243,7 +243,7 @@ pub struct NewListing {
     pub photo_path: String,
     pub location_detail: Option<String>,
     pub event_date: NaiveDate,
-    pub status: Option<ListingStatus>,
+    pub status: Option<DBListingStatus>,
     pub moderated_by: Option<Uuid>,
     pub moderated_at: Option<DateTime<Utc>>,
 }
@@ -251,7 +251,7 @@ pub struct NewListing {
 #[derive(Debug, Clone, AsChangeset, Default)]
 #[diesel(table_name = crate::schema::listings)]
 pub struct UpdateListing {
-    pub type_: Option<ListingType>,
+    pub type_: Option<DBListingType>,
     pub category_id: Option<Uuid>,
     pub building_id: Option<Uuid>,
     pub title: Option<String>,
@@ -259,7 +259,7 @@ pub struct UpdateListing {
     pub photo_path: Option<String>,
     pub location_detail: Option<Option<String>>,
     pub event_date: Option<NaiveDate>,
-    pub status: Option<ListingStatus>,
+    pub status: Option<DBListingStatus>,
     pub moderated_by: Option<Option<Uuid>>,
     pub moderated_at: Option<Option<DateTime<Utc>>>,
 }
@@ -272,8 +272,8 @@ pub struct UpdateListing {
 pub struct ListingStatusHistory {
     pub id: i64,
     pub listing_id: Uuid,
-    pub old_status: Option<ListingStatus>,
-    pub new_status: ListingStatus,
+    pub old_status: Option<DBListingStatus>,
+    pub new_status: DBListingStatus,
     pub changed_by: Option<Uuid>,
     pub note: Option<String>,
     pub changed_at: DateTime<Utc>,
@@ -283,8 +283,8 @@ pub struct ListingStatusHistory {
 #[diesel(table_name = crate::schema::listing_status_history)]
 pub struct NewListingStatusHistory {
     pub listing_id: Uuid,
-    pub old_status: Option<ListingStatus>,
-    pub new_status: ListingStatus,
+    pub old_status: Option<DBListingStatus>,
+    pub new_status: DBListingStatus,
     pub changed_by: Option<Uuid>,
     pub note: Option<String>,
 }
@@ -298,7 +298,7 @@ pub struct Match {
     pub lost_listing_id: Uuid,
     pub found_listing_id: Uuid,
     pub score: BigDecimal,
-    pub status: MatchStatus,
+    pub status: DBMatchStatus,
     pub confirmed_by: Option<Uuid>,
     pub confirmed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -310,7 +310,7 @@ pub struct NewMatch {
     pub lost_listing_id: Uuid,
     pub found_listing_id: Uuid,
     pub score: BigDecimal,
-    pub status: Option<MatchStatus>,
+    pub status: Option<DBMatchStatus>,
     pub confirmed_by: Option<Uuid>,
     pub confirmed_at: Option<DateTime<Utc>>,
 }
@@ -319,7 +319,7 @@ pub struct NewMatch {
 #[diesel(table_name = crate::schema::matches)]
 pub struct UpdateMatch {
     pub score: Option<BigDecimal>,
-    pub status: Option<MatchStatus>,
+    pub status: Option<DBMatchStatus>,
     pub confirmed_by: Option<Option<Uuid>>,
     pub confirmed_at: Option<Option<DateTime<Utc>>>,
 }
@@ -336,7 +336,7 @@ pub struct Return {
     pub loser_confirmed_at: Option<DateTime<Utc>>,
     pub finder_confirmed: bool,
     pub finder_confirmed_at: Option<DateTime<Utc>>,
-    pub final_status: ReturnStatus,
+    pub final_status: DBReturnStatus,
     pub returned_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -349,7 +349,7 @@ pub struct NewReturn {
     pub loser_confirmed_at: Option<DateTime<Utc>>,
     pub finder_confirmed: Option<bool>,
     pub finder_confirmed_at: Option<DateTime<Utc>>,
-    pub final_status: Option<ReturnStatus>,
+    pub final_status: Option<DBReturnStatus>,
     pub returned_at: Option<DateTime<Utc>>,
 }
 
@@ -360,7 +360,7 @@ pub struct UpdateReturn {
     pub loser_confirmed_at: Option<Option<DateTime<Utc>>>,
     pub finder_confirmed: Option<bool>,
     pub finder_confirmed_at: Option<Option<DateTime<Utc>>>,
-    pub final_status: Option<ReturnStatus>,
+    pub final_status: Option<DBReturnStatus>,
     pub returned_at: Option<Option<DateTime<Utc>>>,
 }
 
@@ -398,7 +398,7 @@ pub struct Notification {
     pub id: i64,
     pub user_id: Uuid,
     #[serde(rename = "type")]
-    pub type_: NotificationType,
+    pub type_: DBNotificationType,
     pub payload: Value,
     pub is_read: bool,
     pub created_at: DateTime<Utc>,
@@ -408,7 +408,7 @@ pub struct Notification {
 #[diesel(table_name = crate::schema::notifications)]
 pub struct NewNotification {
     pub user_id: Uuid,
-    pub type_: NotificationType,
+    pub type_: DBNotificationType,
     pub payload: Option<Value>,
     pub is_read: Option<bool>,
 }
@@ -430,7 +430,7 @@ pub struct ModerationLog {
     pub id: i64,
     pub listing_id: Uuid,
     pub moderator_id: Uuid,
-    pub action: ModerationAction,
+    pub action: DBModerationAction,
     pub reason: Option<String>,
     pub created_at: DateTime<Utc>,
 }
@@ -440,6 +440,6 @@ pub struct ModerationLog {
 pub struct NewModerationLog {
     pub listing_id: Uuid,
     pub moderator_id: Uuid,
-    pub action: ModerationAction,
+    pub action: DBModerationAction,
     pub reason: Option<String>,
 }

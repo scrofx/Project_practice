@@ -1,0 +1,315 @@
+
+-- CampusLost — PostgreSQL schema
+-- Single-file schema dump. Creates extensions, enums, all 10 tables,
+-- indexes, functions, triggers, and constraints.
+--
+--   Contains NO seed/demo data.
+--
+-- Target: PostgreSQL 18 or newer.
+
+
+BEGIN;
+
+-- Extensions
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;   -- gen_random_uuid()
+CREATE EXTENSION IF NOT EXISTS citext;     -- case-insensitive email
+CREATE EXTENSION IF NOT EXISTS pg_trgm;    -- fuzzy title similarity
+
+-- Enums
+
+-- Role model (multi-role access)
+CREATE TYPE user_role AS ENUM ('student', 'moderator', 'admin');
+
+-- Listing direction (task: "потерял" / "нашёл")
+CREATE TYPE listing_type AS ENUM ('lost', 'found');
+
+-- Listing lifecycle (status chain with notifications)
+CREATE TYPE listing_status AS ENUM (
+  'pending_review',   -- submitted, awaiting moderator
+  'active',           -- visible in feed
+  'matched',          -- match confirmed, return in progress
+  'returned',         -- item successfully handed over
+  'removed',          -- moderated out
+  'archived'          -- soft-deleted by owner
+);
+
+CREATE TYPE match_status      AS ENUM ('suggested', 'confirmed', 'rejected');
+CREATE TYPE return_status     AS ENUM ('pending', 'completed', 'cancelled');
+CREATE TYPE moderation_action AS ENUM ('approve', 'remove');
+
+-- Preferred contact channel (must actually be present on the user row)
+CREATE TYPE contact_method AS ENUM ('email', 'phone', 'telegram', 'vk');
+
+-- Notification kinds
+CREATE TYPE notification_type AS ENUM (
+  'listing_created',
+  'listing_approved',
+  'listing_removed',
+  'match_found',
+  'match_confirmed',        -- payload carries counterpart contact card
+  'return_confirmed_by_other',
+  'return_completed',
+  'review_received'
+);
+
+-- Tables
+
+-- users — identities, roles, contact channels
+CREATE TABLE users (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email                 CITEXT UNIQUE NOT NULL,
+  password_hash         TEXT NOT NULL,
+  full_name             TEXT NOT NULL,
+  role                  user_role NOT NULL DEFAULT 'student',
+
+  -- Contact channels (email required; others optional)
+  phone                 TEXT,
+  telegram_handle       TEXT,                          -- without leading "@"
+  vk_handle             TEXT,                          -- username or "id<number>"
+
+  preferred_contact     contact_method NOT NULL DEFAULT 'email',
+
+  avatar_path           TEXT,                          -- relative path under uploads/
+  bio                   TEXT,
+  is_active             BOOLEAN NOT NULL DEFAULT TRUE,
+  notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+
+  -- Denormalised from reviews (kept in sync by trigger)
+  rating_sum            INTEGER NOT NULL DEFAULT 0,
+  rating_count          INTEGER NOT NULL DEFAULT 0,
+
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Integrity: preferred channel must actually be present.
+  -- ('email' is trivially safe because email column is NOT NULL.)
+  CONSTRAINT users_preferred_contact_valid CHECK (
+       preferred_contact = 'email'
+    OR (preferred_contact = 'phone'    AND phone           IS NOT NULL)
+    OR (preferred_contact = 'telegram' AND telegram_handle IS NOT NULL)
+    OR (preferred_contact = 'vk'       AND vk_handle       IS NOT NULL)
+  )
+);
+
+-- categories — item taxonomy
+CREATE TABLE categories (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT UNIQUE NOT NULL,
+  slug       TEXT UNIQUE NOT NULL,
+  icon       TEXT,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- campus_buildings — locations
+CREATE TABLE campus_buildings (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL,
+  code       TEXT UNIQUE NOT NULL,
+  address    TEXT,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- listings — lost/found announcements (core entity)
+CREATE TABLE listings (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type            listing_type NOT NULL,
+  category_id     UUID NOT NULL REFERENCES categories(id),
+  building_id     UUID NOT NULL REFERENCES campus_buildings(id),
+
+  title           TEXT NOT NULL,
+  description     TEXT NOT NULL,
+  photo_path      TEXT NOT NULL,                       -- relative path under uploads/listings/
+  location_detail TEXT,
+  event_date      DATE NOT NULL,
+
+  status          listing_status NOT NULL DEFAULT 'pending_review',
+  moderated_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+  moderated_at    TIMESTAMPTZ,
+
+  search_vector   TSVECTOR,                            -- filled by trigger
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- listing_status_history — append-only audit trail
+CREATE TABLE listing_status_history (
+  id          BIGSERIAL PRIMARY KEY,
+  listing_id  UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  old_status  listing_status,
+  new_status  listing_status NOT NULL,
+  changed_by  UUID REFERENCES users(id) ON DELETE SET NULL,
+  note        TEXT,
+  changed_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- matches — auto-suggested and confirmed lost-found pairs
+CREATE TABLE matches (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lost_listing_id   UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  found_listing_id  UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+
+  score             NUMERIC(5,2) NOT NULL,             -- 0–100
+  status            match_status NOT NULL DEFAULT 'suggested',
+  confirmed_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_at      TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (lost_listing_id, found_listing_id),
+  CHECK  (lost_listing_id <> found_listing_id)
+);
+
+-- returns — two-sided physical handover confirmation
+CREATE TABLE returns (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  match_id            UUID NOT NULL UNIQUE REFERENCES matches(id) ON DELETE CASCADE,
+
+  loser_confirmed     BOOLEAN NOT NULL DEFAULT FALSE,
+  loser_confirmed_at  TIMESTAMPTZ,
+  finder_confirmed    BOOLEAN NOT NULL DEFAULT FALSE,
+  finder_confirmed_at TIMESTAMPTZ,
+
+  final_status        return_status NOT NULL DEFAULT 'pending',
+  returned_at         TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- reviews — honesty ratings after a completed return
+CREATE TABLE reviews (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  return_id   UUID NOT NULL REFERENCES returns(id) ON DELETE CASCADE,
+  reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  rating      SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment     TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (return_id, reviewer_id),
+  CHECK  (reviewer_id <> reviewee_id)
+);
+
+-- notifications — per-user activity feed
+CREATE TABLE notifications (
+  id         BIGSERIAL PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type       notification_type NOT NULL,
+  payload    JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_read    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- moderation_logs — moderator accountability
+CREATE TABLE moderation_logs (
+  id           BIGSERIAL PRIMARY KEY,
+  listing_id   UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  moderator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action       moderation_action NOT NULL,
+  reason       TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes
+
+-- Feed with filters. One composite index per frequent access path.
+CREATE INDEX idx_listings_feed       ON listings (status, type, created_at DESC);
+CREATE INDEX idx_listings_cat        ON listings (category_id, status);
+CREATE INDEX idx_listings_bld        ON listings (building_id, status);
+CREATE INDEX idx_listings_date       ON listings (event_date, status);
+CREATE INDEX idx_listings_user       ON listings (user_id, created_at DESC);
+
+-- Keyword search: full-text + fuzzy title
+CREATE INDEX idx_listings_search     ON listings USING GIN (search_vector);
+CREATE INDEX idx_listings_title_trgm ON listings USING GIN (title gin_trgm_ops);
+
+-- Audit trail reads
+CREATE INDEX idx_lsh_listing         ON listing_status_history (listing_id, changed_at DESC);
+
+-- Match lookups (suggested-match panels on listing detail)
+CREATE INDEX idx_matches_lost        ON matches (lost_listing_id,  status);
+CREATE INDEX idx_matches_found       ON matches (found_listing_id, status);
+
+-- Public profile reviews
+CREATE INDEX idx_reviews_reviewee    ON reviews (reviewee_id, created_at DESC);
+
+-- Notification bell badge + feed
+CREATE INDEX idx_notifications_user  ON notifications (user_id, is_read, created_at DESC);
+
+-- Moderation log lookups
+CREATE INDEX idx_modlog_listing      ON moderation_logs (listing_id);
+CREATE INDEX idx_modlog_mod          ON moderation_logs (moderator_id, created_at DESC);
+
+-- Functions
+
+-- Fills listings.search_vector from title/description/location_detail.
+-- 'simple' config avoids dictionary issues with mixed RU/EN demo data.
+CREATE FUNCTION listings_search_vector_update() RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', coalesce(NEW.title,           '')), 'A') ||
+    setweight(to_tsvector('simple', coalesce(NEW.description,     '')), 'B') ||
+    setweight(to_tsvector('simple', coalesce(NEW.location_detail, '')), 'C');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Keeps users.rating_sum / rating_count in sync with reviews.
+-- Also maintains users.updated_at via touch_updated_at trigger.
+CREATE FUNCTION reviews_rating_update() RETURNS trigger AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE users
+       SET rating_sum   = rating_sum   + NEW.rating,
+           rating_count = rating_count + 1
+     WHERE id = NEW.reviewee_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE users
+       SET rating_sum   = rating_sum   - OLD.rating,
+           rating_count = rating_count - 1
+     WHERE id = OLD.reviewee_id;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    -- Rating content isn't expected to change post-insert, but keep
+    -- the counters honest if an admin edits one.
+    UPDATE users
+       SET rating_sum   = rating_sum   - OLD.rating + NEW.rating
+     WHERE id = NEW.reviewee_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Generic BEFORE UPDATE trigger that touches updated_at.
+CREATE FUNCTION touch_updated_at() RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggers
+
+CREATE TRIGGER trg_listings_search
+BEFORE INSERT OR UPDATE OF title, description, location_detail
+ON listings
+FOR EACH ROW
+EXECUTE FUNCTION listings_search_vector_update();
+
+CREATE TRIGGER trg_reviews_rating
+AFTER INSERT OR UPDATE OR DELETE ON reviews
+FOR EACH ROW
+EXECUTE FUNCTION reviews_rating_update();
+
+CREATE TRIGGER trg_users_updated
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+CREATE TRIGGER trg_listings_updated
+BEFORE UPDATE ON listings
+FOR EACH ROW
+EXECUTE FUNCTION touch_updated_at();
+
+COMMIT;
