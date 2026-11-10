@@ -273,6 +273,19 @@ pub struct ReturnDto {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReturnConfirmation {
+    Loser,
+    Finder,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReturnConfirmationRequest {
+    pub return_id: Uuid,
+    pub confirmation: ReturnConfirmation,
+}
+
 // reviews
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

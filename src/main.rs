@@ -6,6 +6,8 @@ pub mod auth;
 mod enums;
 mod listings;
 mod catalog;
+mod returns;
+mod matching;
 
 use rocket::{get, launch, routes};
 use rocket_sync_db_pools::database;
@@ -40,6 +42,7 @@ async fn rocket() -> _ {
             listings::get_listings,
             listings::get_pending_listings,
             listings::moderate_listing,
+            returns::confirm_return,
             catalog::get_buildings,
             catalog::get_categories
         ])

@@ -471,6 +471,14 @@ pub async fn moderate_listing(
                     .values(&notification)
                     .execute(conn)?;
 
+                // Generate suggestions only when the listing is approved
+                if new_status == DBListingStatus::Active {
+                    crate::matching::generate_matches_for_listing(
+                        conn,
+                        &moderated_listing,
+                    )?;
+                }
+
                 Ok(moderated_listing)
             })
         })
