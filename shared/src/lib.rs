@@ -208,7 +208,7 @@ pub struct UpdateListingRequest {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ListingFilters {
-    pub keyword: Option<String>,
+    pub q: Option<String>,
     #[serde(rename = "type")]
     pub listing_type: Option<ListingType>,
     pub category_id: Option<Uuid>,
@@ -216,6 +216,7 @@ pub struct ListingFilters {
     pub date_from: Option<NaiveDate>,
     pub date_to: Option<NaiveDate>,
     pub status: Option<ListingStatus>,
+    pub include_archived: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -318,6 +319,7 @@ pub struct ModerationLogDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModerationActionRequest {
+    pub listing_id: Uuid,
     pub action: ModerationAction,
     pub reason: Option<String>,
 }

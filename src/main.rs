@@ -37,6 +37,9 @@ async fn rocket() -> _ {
             auth::register,
             auth::me,
             listings::create_listing,
+            listings::get_listings,
+            listings::get_pending_listings,
+            listings::moderate_listing,
             catalog::get_buildings,
             catalog::get_categories
         ])
