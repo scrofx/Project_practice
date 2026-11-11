@@ -1,11 +1,9 @@
 // Shared API contracts for CampusLost.
 
-
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-
 // Enums: serialized values match the PostgreSQL enum labels.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,7 +99,7 @@ pub struct LoginRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub access_token: String,
-    pub token_type: String,
+    pub token_type: &'static str,
     pub user: UserDto,
 }
 
@@ -253,9 +251,44 @@ pub struct MatchDto {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchAction {
+    Confirm,
+    Reject,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfirmMatchRequest {
-    pub confirmed: bool,
+pub struct MatchActionRequest {
+    pub action: MatchAction,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct MatchContactDto {
+    pub full_name: String,
+    pub email: String,
+    pub phone: Option<String>,
+    pub telegram_handle: Option<String>,
+    pub vk_handle: Option<String>,
+    pub preferred_contact: ContactMethod,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct MatchContactsResponse {
+    pub match_id: uuid::Uuid,
+    pub contact: MatchContactDto,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct NotificationsResponse {
+    pub notifications: Vec<NotificationDto>,
+    pub unread_counter: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct MatchActionResponse {
+    pub match_data: MatchDto,
+    pub return_id: Option<uuid::Uuid>,
 }
 
 // returns
@@ -351,4 +384,12 @@ pub struct PaginatedResponse<T> {
     pub page: u32,
     pub per_page: u32,
     pub total: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String,
+    pub role: String,
+    pub iat: usize,
+    pub exp: usize,
 }

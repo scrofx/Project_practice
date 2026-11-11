@@ -1,4 +1,4 @@
-use campuslost_shared::{CreateListingRequest, ListingDto, ListingFilters, ListingStatus, ListingType, ModerationAction, ModerationActionRequest};
+use campuslost_shared::{ApiError, CreateListingRequest, ListingDto, ListingFilters, ListingStatus, ListingType, ModerationAction, ModerationActionRequest};
 use chrono::{NaiveDate, Utc};
 use diesel::prelude::*;
 use diesel::PgTextExpressionMethods;
@@ -12,18 +12,8 @@ use crate::models::{
     NewNotification,
 };
 use crate::schema::{listing_status_history, moderation_logs, notifications};
-use crate::{
-    auth::{AuthUser, ModeratorGuard},
-    db::Db,
-    models::{DBListingStatus, DBListingType, Listing, NewListing},
-    schema::listings,
-};
+use crate::{api_error, auth::{AuthUser, ModeratorGuard}, db::Db, models::{DBListingStatus, DBListingType, Listing, NewListing}, schema::listings};
 
-#[derive(Debug, serde::Serialize)]
-pub struct ListingApiError {
-    pub error: String,
-    pub message: String,
-}
 
 #[derive(Debug)]
 enum ModerationTransactionError {
@@ -53,13 +43,13 @@ pub struct ListingQuery {
 }
 
 impl ListingQuery {
-    pub fn into_filters(self) -> Result<ListingFilters, String> {
+    pub fn into_filters(self) -> Result<ListingFilters, &'static str> {
         let listing_type = self
             .listing_type
             .map(|value| match value.as_str() {
                 "lost" => Ok(ListingType::Lost),
                 "found" => Ok(ListingType::Found),
-                _ => Err("Invalid listing type".to_string()),
+                _ => Err("Invalid listing type"),
             })
             .transpose()?;
 
@@ -72,25 +62,25 @@ impl ListingQuery {
                 "returned" => Ok(ListingStatus::Returned),
                 "removed" => Ok(ListingStatus::Removed),
                 "archived" => Ok(ListingStatus::Archived),
-                _ => Err("Invalid listing status".to_string()),
+                _ => Err("Invalid listing status"),
             })
             .transpose()?;
 
         let category_id = self
             .category_id
-            .map(|value| Uuid::parse_str(&value).map_err(|_| "Invalid category_id".to_string()))
+            .map(|value| Uuid::parse_str(&value).map_err(|_| "Invalid category_id"))
             .transpose()?;
 
         let building_id = self
             .building_id
-            .map(|value| Uuid::parse_str(&value).map_err(|_| "Invalid building_id".to_string()))
+            .map(|value| Uuid::parse_str(&value).map_err(|_| "Invalid building_id"))
             .transpose()?;
 
         let date_from = self
             .date_from
             .map(|value| {
                 NaiveDate::parse_from_str(&value, "%d-%m-%Y")
-                    .map_err(|_| "Invalid date_from. Expected YYYY-MM-DD".to_string())
+                    .map_err(|_| "Invalid date_from. Expected YYYY-MM-DD")
             })
             .transpose()?;
 
@@ -98,7 +88,7 @@ impl ListingQuery {
             .date_to
             .map(|value| {
                 NaiveDate::parse_from_str(&value, "%d-%m-%Y")
-                    .map_err(|_| "Invalid date_to. Expected YYYY-MM-DD".to_string())
+                    .map_err(|_| "Invalid date_to. Expected YYYY-MM-DD")
             })
             .transpose()?;
 
@@ -115,19 +105,7 @@ impl ListingQuery {
     }
 }
 
-fn api_error(
-    status_code: Status,
-    error: &str,
-    message: &str,
-) -> status::Custom<Json<ListingApiError>> {
-    status::Custom(
-        status_code,
-        Json(ListingApiError {
-            error: error.to_string(),
-            message: message.to_string(),
-        }),
-    )
-}
+
 
 // Convert the database model into the public API DTO.
 fn listing_to_dto(listing: Listing) -> ListingDto {
@@ -165,7 +143,7 @@ pub async fn create_listing(
     db: Db,
     auth: AuthUser,
     payload: Json<CreateListingRequest>,
-) -> Result<Json<ListingDto>, status::Custom<Json<ListingApiError>>> {
+) -> Result<Json<ListingDto>, status::Custom<Json<ApiError>>> {
     let request = payload.into_inner();
 
     // Basic input validation.
@@ -249,11 +227,11 @@ pub async fn create_listing(
 pub async fn get_listings(
     query: ListingQuery,
     db: Db,
-) -> Result<Json<Vec<ListingDto>>, status::Custom<Json<ListingApiError>>> {
+) -> Result<Json<Vec<ListingDto>>, status::Custom<Json<ApiError>>> {
     // Parse and validate query parameters.
     let filters = query
         .into_filters()
-        .map_err(|message| api_error(Status::BadRequest, "invalid_filter", &message))?;
+        .map_err(|message| api_error(Status::BadRequest, "invalid_filter", message))?;
 
     let result = db
         .run(move |conn| {
@@ -339,7 +317,7 @@ pub async fn get_listings(
 pub async fn get_pending_listings(
     _moderator: ModeratorGuard,
     db: Db,
-) -> Result<Json<Vec<ListingDto>>, status::Custom<Json<ListingApiError>>> {
+) -> Result<Json<Vec<ListingDto>>, status::Custom<Json<ApiError>>> {
     let result = db
         .run(|conn| {
             listings::table
@@ -369,7 +347,7 @@ pub async fn moderate_listing(
     moderator: ModeratorGuard,
     db: Db,
     request: Json<ModerationActionRequest>,
-) -> Result<Json<ListingDto>, status::Custom<Json<ListingApiError>>> {
+) -> Result<Json<ListingDto>, status::Custom<Json<ApiError>>> {
     let request = request.into_inner();
 
     let listing_id = request.listing_id;

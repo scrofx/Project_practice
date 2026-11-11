@@ -11,42 +11,19 @@ use campuslost_shared::{
     ReturnConfirmationRequest,
     ReturnDto,
     ReturnStatus as ApiReturnStatus,
+    ApiError,
 };
 use serde::Serialize;
 use serde_json::json;
 
-use crate::{
-    auth::AuthUser,
-    db::Db,
-    models::{
-        Listing, DBListingStatus, Match, DBMatchStatus, NewListingStatusHistory,
-        NewNotification, DBNotificationType, Return as DbReturn,
-        DBReturnStatus,
-    },
-    schema::{
-        listing_status_history, listings, matches, notifications, returns,
-    },
-};
+use crate::{api_error, auth::AuthUser, db::Db, models::{
+    Listing, DBListingStatus, Match, DBMatchStatus, NewListingStatusHistory,
+    NewNotification, DBNotificationType, Return as DbReturn,
+    DBReturnStatus,
+}, schema::{
+    listing_status_history, listings, matches, notifications, returns,
+}};
 
-#[derive(Debug, Serialize)]
-pub struct ReturnApiError {
-    pub error: String,
-    pub message: String,
-}
-
-fn api_error(
-    status_code: Status,
-    error: &str,
-    message: &str,
-) -> status::Custom<Json<ReturnApiError>> {
-    status::Custom(
-        status_code,
-        Json(ReturnApiError {
-            error: error.to_string(),
-            message: message.to_string(),
-        }),
-    )
-}
 
 fn return_to_dto(record: DbReturn) -> ReturnDto {
     ReturnDto {
@@ -84,7 +61,7 @@ pub async fn confirm_return(
     db: Db,
     auth: AuthUser,
     payload: Json<ReturnConfirmationRequest>,
-) -> Result<Json<ReturnDto>, status::Custom<Json<ReturnApiError>>> {
+) -> Result<Json<ReturnDto>, status::Custom<Json<ApiError>>> {
     let request = payload.into_inner();
     let user_id = auth.user.id;
 

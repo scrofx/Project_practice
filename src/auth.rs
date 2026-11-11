@@ -12,16 +12,11 @@ use rocket::{
     response::status,
     serde::json::Json,
 };
-use campuslost_shared::{UserDto, RegisterRequest, LoginRequest, ContactMethod};
+use campuslost_shared::{UserDto, RegisterRequest, LoginRequest, ContactMethod, ApiError, AuthResponse, Claims};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    db::Db,
-    models::{DBContactMethod, NewUser, User, DBUserRole},
-    schema::users,
-
-};
+use crate::{api_error, db::Db, models::{DBContactMethod, NewUser, User, DBUserRole}, schema::users};
 
 const DEFAULT_TOKEN_TTL_SECONDS: u64 = 60 * 60;
 
@@ -48,26 +43,6 @@ impl From<&User> for UserDto {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct AuthResponse {
-    pub access_token: String,
-    pub token_type: &'static str,
-    pub user: UserDto,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ApiError {
-    pub error: &'static str,
-    pub message: &'static str,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Claims {
-    sub: String,
-    role: String,
-    iat: usize,
-    exp: usize,
-}
 
 #[derive(Debug, Clone)]
 pub struct AuthUser {
@@ -91,16 +66,6 @@ fn role_as_str(role: DBUserRole) -> &'static str {
     }
 }
 
-fn api_error(
-    http_status: Status,
-    error: &'static str,
-    message: &'static str,
-) -> status::Custom<Json<ApiError>> {
-    status::Custom(
-        http_status,
-        Json(ApiError { error, message }),
-    )
-}
 
 fn jwt_secret() -> Result<Vec<u8>, status::Custom<Json<ApiError>>> {
     let secret = std::env::var("JWT_SECRET")

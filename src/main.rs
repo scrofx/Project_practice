@@ -8,10 +8,25 @@ mod listings;
 mod catalog;
 mod returns;
 mod matching;
+mod notifications;
 
 use rocket::{get, launch, routes};
+use rocket::http::Status;
+use rocket::response::status;
+use rocket::serde::json::Json;
 use rocket_sync_db_pools::database;
+use campuslost_shared::ApiError;
 
+pub fn api_error(
+    http_status: Status,
+    error: &str,
+    message: &str,
+) -> status::Custom<Json<ApiError>> {
+    status::Custom(
+        http_status,
+        Json(ApiError { error: error.parse().unwrap(), message: message.parse().unwrap() }),
+    )
+}
 
 #[get("/health")]
 fn health() -> &'static str {
@@ -43,6 +58,9 @@ async fn rocket() -> _ {
             listings::get_pending_listings,
             listings::moderate_listing,
             matching::get_listing_matches,
+            matching::action_on_match,
+            matching::get_match_contacts,
+            notifications::get_notifications,
             returns::confirm_return,
             catalog::get_buildings,
             catalog::get_categories
