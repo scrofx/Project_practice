@@ -482,3 +482,40 @@ pub async fn moderate_listing(
         }
     }
 }
+
+#[get("/users/me/listings")]
+pub async fn get_my_listings(
+    auth: AuthUser,
+    db: Db,
+) -> Result<
+    Json<Vec<ListingDto>>,
+    status::Custom<Json<ApiError>>,
+> {
+    let user_id = auth.user.id;
+
+    let result = db
+        .run(move |conn| {
+            listings::table
+                .filter(listings::user_id.eq(user_id))
+                .order(listings::created_at.desc())
+                .select(Listing::as_select())
+                .load::<Listing>(conn)
+        })
+        .await;
+
+    match result {
+        Ok(items) => {
+            let items = items
+                .into_iter()
+                .map(listing_to_dto)
+                .collect();
+
+            Ok(Json(items))
+        }
+        Err(_) => Err(api_error(
+            Status::InternalServerError,
+            "database_error",
+            "Could not retrieve your listings",
+        )),
+    }
+}

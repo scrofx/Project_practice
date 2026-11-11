@@ -57,10 +57,12 @@ async fn rocket() -> _ {
             listings::get_listings,
             listings::get_pending_listings,
             listings::moderate_listing,
+            listings::get_my_listings,
             matching::get_listing_matches,
             matching::action_on_match,
             matching::get_match_contacts,
             notifications::get_notifications,
+            notifications::mark_notification_as_read,
             returns::confirm_return,
             catalog::get_buildings,
             catalog::get_categories
