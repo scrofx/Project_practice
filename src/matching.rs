@@ -12,7 +12,8 @@ use chrono::Utc;
 use diesel::{prelude::*, PgConnection};
 use serde_json::json;
 use std::collections::HashSet;
-
+use diesel::dsl::sql;
+use diesel::sql_types::{Bool, Text};
 use crate::{
     models::{
         DBListingStatus, DBListingType, DBMatchStatus, DBNotificationType,
@@ -68,11 +69,29 @@ pub(crate) fn generate_matches_for_listing(
         DBListingType::Found => DBListingType::Lost,
     };
 
-    // Only active listings of the opposite type and same category qualify.
+    let search_text = format!(
+        "{} {} {}",
+        approved_listing.title,
+        approved_listing.description,
+        approved_listing.location_detail.as_deref().unwrap_or("")
+    );
+
     let candidates = listings::table
         .filter(listings::status.eq(DBListingStatus::Active))
         .filter(listings::type_.eq(opposite_type))
         .filter(listings::category_id.eq(approved_listing.category_id))
+        .filter(
+            sql::<Bool>(
+                "listings.search_vector @@ to_tsquery(
+                'simple',
+                array_to_string(
+                    tsvector_to_array(
+                        to_tsvector('simple', "
+            )
+                .bind::<Text, _>(&search_text)
+                .sql(")), ' | ')
+            )"),
+        )
         .select(Listing::as_select())
         .load::<Listing>(conn)?;
 
