@@ -15,6 +15,8 @@ use rocket::http::Status;
 use rocket::response::status;
 use rocket::serde::json::Json;
 use rocket_sync_db_pools::database;
+use rocket::http::Method;
+use rocket_cors::{AllowedHeaders, AllowedOrigins, CorsOptions};
 use campuslost_shared::ApiError;
 
 pub fn api_error(
@@ -44,7 +46,29 @@ async fn rocket() -> _ {
         .merge(("databases.campus_lost.url", database_url))
         .merge(("databases.campus_lost.pool_size", 10));
 
+    let cors = CorsOptions {
+        allowed_origins: AllowedOrigins::some_exact(&[
+            "http://127.0.0.1:8080",
+        ]),
+        allowed_methods: vec![
+            Method::Get,
+            Method::Post,
+            Method::Patch,
+        ]
+            .into_iter()
+            .map(From::from)
+            .collect(),
+        allowed_headers: AllowedHeaders::some(&[
+            "Authorization",
+            "Content-Type",
+        ]),
+        ..Default::default()
+    }
+        .to_cors()
+        .expect("Failed to configure CORS");
+
     rocket::custom(figment)
+        .attach(cors)
         // Register the pool before the startup healthcheck fairing.
         .attach(db::Db::fairing())
         .attach(db::DatabaseStartupHealthcheck)
