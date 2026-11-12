@@ -108,7 +108,7 @@ fn issue_token(user: &User) -> Result<String, status::Custom<Json<ApiError>>> {
 fn auth_response(user: &User) -> Result<AuthResponse, status::Custom<Json<ApiError>>> {
     Ok(AuthResponse {
         access_token: issue_token(user)?,
-        token_type: "Bearer",
+        token_type: "Bearer".parse().unwrap(),
         user: UserDto::from(user),
     })
 }

@@ -99,7 +99,7 @@ pub struct LoginRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub access_token: String,
-    pub token_type: &'static str,
+    pub token_type: String,
     pub user: UserDto,
 }
 
@@ -285,7 +285,7 @@ pub struct NotificationsResponse {
     pub unread_counter: i64,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MatchActionResponse {
     pub match_data: MatchDto,
     pub return_id: Option<uuid::Uuid>,
