@@ -258,7 +258,6 @@ pub async fn get_listing_matches(
                         .eq(listing_id)
                         .or(matches::found_listing_id.eq(listing_id)),
                 )
-                .filter(matches::status.eq(DBMatchStatus::Suggested))
                 .order(matches::score.desc())
                 .select(Match::as_select())
                 .load::<Match>(conn)
@@ -274,7 +273,7 @@ pub async fn get_listing_matches(
                     lost_listing_id: item.lost_listing_id,
                     found_listing_id: item.found_listing_id,
                     score: item.score.to_string().parse::<f64>().unwrap_or(0.0),
-                    status: MatchStatus::Suggested,
+                    status: item.status.into(),
                     confirmed_by: item.confirmed_by,
                     confirmed_at: item.confirmed_at,
                     created_at: item.created_at,

@@ -263,7 +263,7 @@ pub struct MatchActionRequest {
     pub action: MatchAction,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MatchContactDto {
     pub full_name: String,
     pub email: String,
@@ -273,7 +273,7 @@ pub struct MatchContactDto {
     pub preferred_contact: ContactMethod,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MatchContactsResponse {
     pub match_id: uuid::Uuid,
     pub contact: MatchContactDto,

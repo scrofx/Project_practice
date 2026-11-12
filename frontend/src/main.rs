@@ -1,4 +1,4 @@
-use campuslost_shared::{ApiError, AuthResponse, CampusBuildingDto, CategoryDto, CreateListingRequest, ListingDto, ListingStatus, ListingType, LoginRequest, MatchAction, MatchActionRequest, MatchActionResponse, MatchDto, RegisterRequest};
+use campuslost_shared::{ApiError, AuthResponse, CampusBuildingDto, CategoryDto, CreateListingRequest, ListingDto, ListingStatus, ListingType, LoginRequest, MatchAction, MatchActionRequest, MatchActionResponse, MatchContactsResponse, MatchDto, MatchStatus, RegisterRequest};
 use chrono::NaiveDate;
 use gloo_net::http::Request;
 use gloo_storage::{LocalStorage, Storage};
@@ -1097,6 +1097,10 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
     let action_message = use_state(|| None::<(bool, String)>);
     let confirmed_match = use_state(|| None::<Uuid>);
     let rejected_match = use_state(|| None::<Uuid>);
+    let match_contacts = use_state(|| None::<MatchContactsResponse>);
+    let show_contacts = use_state(|| false);
+    let loading_contacts = use_state(|| false);
+    let contact_error = use_state(|| None::<String>);
 
     {
         let matches = matches.clone();
@@ -1219,7 +1223,11 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
                     Some(Ok(items)) => html! {
                         <div class="mt-2">
                             {
-                                items.iter().map(|(match_item, other_listing)| {
+                                items.iter()
+                                .filter(|(match_item, _)| {
+                                    match_item.status != MatchStatus::Rejected
+                                })
+                                .map(|(match_item, other_listing)| {
                                     let is_selected = other_listing
                                         .as_ref()
                                         .map(|listing| *selected_match == Some(listing.id))
@@ -1233,7 +1241,7 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
                                     let confirmed_match_state = confirmed_match.clone();
 
                                     let match_id = match_item.id;
-
+                                    let contacts_match_id = match_id;
                                     let confirm_click = Callback::from(move |_| {
                                         let confirming_match = confirming_match_state.clone();
                                         let action_message = action_message_state.clone();
@@ -1300,6 +1308,70 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
                                             }
                                         });
                                     });
+                                    let view_contacts_click = {
+                                    let match_contacts = match_contacts.clone();
+                                    let show_contacts = show_contacts.clone();
+                                    let loading_contacts = loading_contacts.clone();
+                                    let contact_error = contact_error.clone();
+
+                                    Callback::from(move |_: web_sys::MouseEvent| {
+                                        let match_contacts = match_contacts.clone();
+                                        let show_contacts = show_contacts.clone();
+                                        let loading_contacts = loading_contacts.clone();
+                                        let contact_error = contact_error.clone();
+                                        let match_id = contacts_match_id;
+
+                                        spawn_local(async move {
+                                            loading_contacts.set(true);
+                                            contact_error.set(None);
+
+                                            let token = match LocalStorage::get::<String>("campuslost_token") {
+                                                Ok(token) => token,
+                                                Err(_) => {
+                                                    contact_error.set(Some("You are not logged in.".to_string()));
+                                                    loading_contacts.set(false);
+                                                    return;
+                                                }
+                                            };
+
+                                            let response = Request::get(&format!(
+                                                "{API_BASE}/matches/{match_id}/contacts"
+                                            ))
+                                            .header("Authorization", &format!("Bearer {token}"))
+                                            .send()
+                                            .await;
+
+                                            match response {
+                                                Ok(response) if response.ok() => {
+                                                    match response.json::<MatchContactsResponse>().await {
+                                                        Ok(data) => {
+                                                            match_contacts.set(Some(data));
+                                                            show_contacts.set(true);
+                                                        }
+                                                        Err(error) => {
+                                                            contact_error.set(Some(format!(
+                                                                "Could not read contact details: {error}"
+                                                            )));
+                                                        }
+                                                    }
+                                                }
+                                                Ok(response) => {
+                                                    contact_error.set(Some(format!(
+                                                        "Could not load contact details. Server returned: {}",
+                                                        response.status()
+                                                    )));
+                                                }
+                                                Err(error) => {
+                                                    contact_error.set(Some(format!(
+                                                        "Request failed: {error}"
+                                                    )));
+                                                }
+                                            }
+
+                                            loading_contacts.set(false);
+                                        });
+                                    })
+                                };
                                     let rejected_match_state = rejected_match.clone();
                                     let confirming_match_state = confirming_match.clone();
                                     let action_message_state = action_message.clone();
@@ -1425,10 +1497,21 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
                                                                 </p>
                                                                 <div class="mt-3 d-flex gap-2 flex-wrap">
                                                                     {
-                                                                        if *confirmed_match == Some(match_item.id) {
+                                                                        if match_item.status == MatchStatus::Confirmed
+                                                                            || *confirmed_match == Some(match_item.id) {
                                                                             html! {
-                                                                                <button class="btn btn-success btn-sm" disabled=true>
-                                                                                    {"Match confirmed"}
+                                                                                <button
+                                                                                    class="btn btn-outline-primary btn-sm"
+                                                                                    onclick={view_contacts_click.clone()}
+                                                                                    disabled={*loading_contacts}
+                                                                                >
+                                                                                    {
+                                                                                        if *loading_contacts {
+                                                                                            "Loading contact details..."
+                                                                                        } else {
+                                                                                            "View contact details"
+                                                                                        }
+                                                                                    }
                                                                                 </button>
                                                                             }
                                                                         } else if *rejected_match == Some(match_item.id) {
@@ -1483,6 +1566,129 @@ fn listing_matches(props: &ListingMatchesProps) -> Html {
                             }
                         </div>
                     },
+                }
+            }
+            {
+                if *show_contacts {
+                    if let Some(data) = (*match_contacts).as_ref() {
+                        html! {
+                            <>
+                                <div
+                                    class="modal-backdrop fade show"
+                                    onclick={{
+                                        let show_contacts = show_contacts.clone();
+                                        Callback::from(move |_: web_sys::MouseEvent| {
+                                            show_contacts.set(false);
+                                        })
+                                    }}
+                                />
+
+                                <div
+                                    class="modal d-block"
+                                    tabindex="-1"
+                                    role="dialog"
+                                >
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">
+                                                    {"Contact details"}
+                                                </h5>
+                                                <button
+                                                    type="button"
+                                                    class="btn-close"
+                                                    aria-label="Close"
+                                                    onclick={{
+                                                        let show_contacts = show_contacts.clone();
+                                                        Callback::from(move |_: web_sys::MouseEvent| {
+                                                            show_contacts.set(false);
+                                                        })
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div class="modal-body">
+                                                <p>
+                                                    <strong>{"Name: "}</strong>
+                                                    {data.contact.full_name.clone()}
+                                                </p>
+
+                                                <p>
+                                                    <strong>{"Email: "}</strong>
+                                                    <a href={format!("mailto:{}", data.contact.email)}>
+                                                        {data.contact.email.clone()}
+                                                    </a>
+                                                </p>
+
+                                                {
+                                                    if let Some(phone) = data.contact.phone.as_ref() {
+                                                        html! {
+                                                            <p>
+                                                                <strong>{"Phone: "}</strong>
+                                                                {phone.clone()}
+                                                            </p>
+                                                        }
+                                                    } else {
+                                                        Html::default()
+                                                    }
+                                                }
+
+                                                {
+                                                    if let Some(telegram) = data.contact.telegram_handle.as_ref() {
+                                                        html! {
+                                                            <p>
+                                                                <strong>{"Telegram: "}</strong>
+                                                                {telegram.clone()}
+                                                            </p>
+                                                        }
+                                                    } else {
+                                                        Html::default()
+                                                    }
+                                                }
+
+                                                {
+                                                    if let Some(vk) = data.contact.vk_handle.as_ref() {
+                                                        html! {
+                                                            <p>
+                                                                <strong>{"VK: "}</strong>
+                                                                {vk.clone()}
+                                                            </p>
+                                                        }
+                                                    } else {
+                                                        Html::default()
+                                                    }
+                                                }
+
+                                                <p class="mb-0">
+                                                    <strong>{"Preferred contact: "}</strong>
+                                                    {format!("{:?}", data.contact.preferred_contact)}
+                                                </p>
+                                            </div>
+
+                                            <div class="modal-footer">
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-secondary"
+                                                    onclick={{
+                                                        let show_contacts = show_contacts.clone();
+                                                        Callback::from(move |_: web_sys::MouseEvent| {
+                                                            show_contacts.set(false);
+                                                        })
+                                                    }}
+                                                >
+                                                    {"Close"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        }
+                    } else {
+                        Html::default()
+                    }
+                } else {
+                    Html::default()
                 }
             }
         </div>
